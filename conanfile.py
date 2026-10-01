@@ -14,3 +14,5 @@ class F8CvkitDependencies(ConanFile):
     def configure(self):
         self.options["opencv"].tracking = True
         self.options["opencv"].with_ffmpeg = False
+        # These services consume frames from the SDK, without OpenCV windows.
+        self.options["opencv"].highgui = False
