@@ -1,46 +1,66 @@
 {
   "schemaVersion": "f8serviceIndex/1",
-  "modelRoot": "../resources/models",
+  "modelRoot": "${F8_MODEL_ROOT}",
   "services": [
     {
       "serviceClass": "f8.cvkit.denseoptflow",
       "manifests": {
-        "linux": "services/f8.cvkit.denseoptflow/service.linux.yml",
-        "win32": "services/f8.cvkit.denseoptflow/service.win.yml"
+        "linux": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.denseoptflow/service.linux.yml",
+        "win32": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.denseoptflow/service.win.yml"
       },
-      "describe": "describes/f8.cvkit.denseoptflow.json"
+      "describe": "${F8_PACKAGE_ROOT}/config/describes/f8.cvkit.denseoptflow.json",
+      "bundleRoots": {
+        "linux": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/linux",
+        "win32": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/win"
+      }
     },
     {
       "serviceClass": "f8.cvkit.flowmetric",
       "manifests": {
-        "linux": "services/f8.cvkit.flowmetric/service.linux.yml",
-        "win32": "services/f8.cvkit.flowmetric/service.win.yml"
+        "linux": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.flowmetric/service.linux.yml",
+        "win32": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.flowmetric/service.win.yml"
       },
-      "describe": "describes/f8.cvkit.flowmetric.json"
+      "describe": "${F8_PACKAGE_ROOT}/config/describes/f8.cvkit.flowmetric.json",
+      "bundleRoots": {
+        "linux": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/linux",
+        "win32": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/win"
+      }
     },
     {
       "serviceClass": "f8.cvkit.templatematch",
       "manifests": {
-        "linux": "services/f8.cvkit.templatematch/service.linux.yml",
-        "win32": "services/f8.cvkit.templatematch/service.win.yml"
+        "linux": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.templatematch/service.linux.yml",
+        "win32": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.templatematch/service.win.yml"
       },
-      "describe": "describes/f8.cvkit.templatematch.json"
+      "describe": "${F8_PACKAGE_ROOT}/config/describes/f8.cvkit.templatematch.json",
+      "bundleRoots": {
+        "linux": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/linux",
+        "win32": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/win"
+      }
     },
     {
       "serviceClass": "f8.cvkit.tracking",
       "manifests": {
-        "linux": "services/f8.cvkit.tracking/service.linux.yml",
-        "win32": "services/f8.cvkit.tracking/service.win.yml"
+        "linux": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.tracking/service.linux.yml",
+        "win32": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.tracking/service.win.yml"
       },
-      "describe": "describes/f8.cvkit.tracking.json"
+      "describe": "${F8_PACKAGE_ROOT}/config/describes/f8.cvkit.tracking.json",
+      "bundleRoots": {
+        "linux": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/linux",
+        "win32": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/win"
+      }
     },
     {
       "serviceClass": "f8.cvkit.videostab",
       "manifests": {
-        "linux": "services/f8.cvkit.videostab/service.linux.yml",
-        "win32": "services/f8.cvkit.videostab/service.win.yml"
+        "linux": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.videostab/service.linux.yml",
+        "win32": "${F8_PACKAGE_ROOT}/config/services/f8.cvkit.videostab/service.win.yml"
       },
-      "describe": "describes/f8.cvkit.videostab.json"
+      "describe": "${F8_PACKAGE_ROOT}/config/describes/f8.cvkit.videostab.json",
+      "bundleRoots": {
+        "linux": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/linux",
+        "win32": "${F8_PACKAGE_ROOT}/runtime/bundles/f8.cvkit/0.0.1/win"
+      }
     }
   ]
 }
