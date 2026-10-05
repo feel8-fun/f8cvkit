@@ -6,6 +6,8 @@
       "name": "Computer Vision",
       "version": "0.0.1",
       "description": "Track objects, match templates, stabilize video and analyze optical flow.",
+      "resources": [{"resourceId": "tracking-models", "path": "${F8_PACKAGE_ROOT}/resources/models/tracking/README.md", "description": "CVKit tracking model profiles and storage."}],
+      "modelDirectories": ["tracking"],
       "serviceClasses": [
         "f8.cvkit.denseoptflow",
         "f8.cvkit.flowmetric",
