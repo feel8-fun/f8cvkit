@@ -107,17 +107,6 @@ bool FlowMetricService::start() {
   dv_dy_.release();
   metric_output_.release();
 
-  monitor_observed_frames_ = 0;
-  monitor_processed_frames_ = 0;
-  monitor_window_processed_frames_ = 0;
-  monitor_fail_frames_ = 0;
-  monitor_last_points_per_frame_ = 0;
-  monitor_window_start_ms_ = 0;
-  monitor_last_process_ms_ = 0.0;
-  monitor_total_process_ms_ = 0.0;
-  monitor_last_latency_ms_ = 0.0;
-  monitor_total_latency_ms_ = 0.0;
-  monitor_fps_ = 0.0;
 
   auto publisher = std::make_shared<f8::cppsdk::ZenohLatestVideoFramePublisher>();
   if (publisher->open(runtime_backend, scalar_stream_key_)) {
@@ -194,47 +183,9 @@ void FlowMetricService::publish_error_if_changed(const json& value, const std::s
 
 void FlowMetricService::emit_monitor_snapshot(std::int64_t ts_ms, std::uint64_t frame_id, double process_ms,
                                               double latency_ms, std::uint64_t points_per_frame) {
-  if (!bus_) return;
   (void)frame_id;
-  if (monitor_window_start_ms_ <= 0) {
-    monitor_window_start_ms_ = ts_ms;
-  }
-  ++monitor_processed_frames_;
-  ++monitor_window_processed_frames_;
-  monitor_last_process_ms_ = process_ms;
-  monitor_total_process_ms_ += process_ms;
-  monitor_last_latency_ms_ = latency_ms;
-  monitor_total_latency_ms_ += latency_ms;
-  monitor_last_points_per_frame_ = points_per_frame;
-
-  const std::int64_t elapsed = ts_ms - monitor_window_start_ms_;
-  if (elapsed >= 1000) {
-    monitor_fps_ = static_cast<double>(monitor_window_processed_frames_) * 1000.0 / static_cast<double>(elapsed);
-    monitor_window_start_ms_ = ts_ms;
-    monitor_window_processed_frames_ = 0;
-  }
-
-  const std::uint64_t dropped_frames = monitor_observed_frames_ > monitor_processed_frames_
-                                           ? (monitor_observed_frames_ - monitor_processed_frames_)
-                                           : 0;
-  const double avg_process_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_process_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  const double avg_latency_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_latency_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  service_runtime::CvProcessMetrics metrics;
-  metrics.observed_frames = monitor_observed_frames_;
-  metrics.processed_frames = monitor_processed_frames_;
-  metrics.dropped_frames = dropped_frames;
-  metrics.failed_frames = monitor_fail_frames_;
-  metrics.last_process_ms = monitor_last_process_ms_;
-  metrics.avg_process_ms = avg_process_ms;
-  metrics.last_latency_ms = monitor_last_latency_ms_;
-  metrics.avg_latency_ms = avg_latency_ms;
-  metrics.process_fps = monitor_fps_;
-  metrics.last_points_per_frame = monitor_last_points_per_frame_;
-  service_runtime::publish_cv_process_metrics(bus_.get(), metrics);
+  (void)points_per_frame;
+  service_runtime::publish_cv_process_timing(bus_.get(), process_ms, latency_ms, ts_ms);
 }
 
 void FlowMetricService::on_lifecycle(bool active, const json& meta) {
@@ -383,7 +334,6 @@ void FlowMetricService::process_frame_once() {
   const std::uint64_t source_frame_id = latest->frame_id;
   flow_payload_ = std::move(latest->payload);
 
-  ++monitor_observed_frames_;
   ++frame_counter_;
   last_frame_id_ = source_frame_id;
 
@@ -410,7 +360,6 @@ void FlowMetricService::process_frame_once() {
   const int width = static_cast<int>(frame_width);
   const int height = static_cast<int>(frame_height);
   if (width <= 0 || height <= 0) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("invalid flow dimensions", "runtime", json::object());
     return;
   }
@@ -461,7 +410,6 @@ void FlowMetricService::process_frame_once() {
     }
     metric_output_ *= static_cast<float>(metric_scale_);
   } catch (const cv::Exception& ex) {
-    ++monitor_fail_frames_;
     publish_error_if_changed(std::string("opencv flow metric failed: ") + ex.what(), "runtime",
                              json::object());
     return;
@@ -478,7 +426,6 @@ void FlowMetricService::process_frame_once() {
   };
 
   if (!scalar_zenoh_publisher_ || !scalar_zenoh_publisher_->valid()) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("scalar zenoh publisher unavailable: " + scalar_stream_key_, "runtime", json::object());
     return;
   }
@@ -495,7 +442,6 @@ void FlowMetricService::process_frame_once() {
   frame.payload = scalar_payload_.data();
   frame.payload_bytes = scalar_payload_.size();
   if (!scalar_zenoh_publisher_->publish_frame(frame)) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("scalar zenoh publish failed: " + scalar_stream_key_, "runtime", json::object());
     return;
   }

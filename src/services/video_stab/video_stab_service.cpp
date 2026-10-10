@@ -166,16 +166,6 @@ bool VideoStabService::start() {
   input_last_frame_id_ = 0;
   input_last_open_attempt_ms_ = 0;
 
-  monitor_observed_frames_ = 0;
-  monitor_processed_frames_ = 0;
-  monitor_window_processed_frames_ = 0;
-  monitor_fail_frames_ = 0;
-  monitor_window_start_ms_ = 0;
-  monitor_last_process_ms_ = 0.0;
-  monitor_total_process_ms_ = 0.0;
-  monitor_last_latency_ms_ = 0.0;
-  monitor_total_latency_ms_ = 0.0;
-  monitor_fps_ = 0.0;
 
   auto publisher = std::make_shared<f8::cppsdk::ZenohLatestVideoFramePublisher>();
   if (publisher->open(runtime_backend, output_stream_key_)) {
@@ -262,45 +252,8 @@ void VideoStabService::publish_error_if_changed(const json& value, const std::st
 
 void VideoStabService::emit_monitor_snapshot(std::int64_t ts_ms, std::uint64_t frame_id, double process_ms,
                                              double latency_ms) {
-  if (!bus_)
-    return;
   (void)frame_id;
-  if (monitor_window_start_ms_ <= 0) {
-    monitor_window_start_ms_ = ts_ms;
-  }
-  ++monitor_processed_frames_;
-  ++monitor_window_processed_frames_;
-  monitor_last_process_ms_ = process_ms;
-  monitor_total_process_ms_ += process_ms;
-  monitor_last_latency_ms_ = latency_ms;
-  monitor_total_latency_ms_ += latency_ms;
-
-  const std::int64_t elapsed = ts_ms - monitor_window_start_ms_;
-  if (elapsed >= 1000) {
-    monitor_fps_ = static_cast<double>(monitor_window_processed_frames_) * 1000.0 / static_cast<double>(elapsed);
-    monitor_window_start_ms_ = ts_ms;
-    monitor_window_processed_frames_ = 0;
-  }
-
-  const std::uint64_t dropped_frames =
-      monitor_observed_frames_ > monitor_processed_frames_ ? (monitor_observed_frames_ - monitor_processed_frames_) : 0;
-  const double avg_process_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_process_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  const double avg_latency_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_latency_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  service_runtime::CvProcessMetrics metrics;
-  metrics.observed_frames = monitor_observed_frames_;
-  metrics.processed_frames = monitor_processed_frames_;
-  metrics.dropped_frames = dropped_frames;
-  metrics.failed_frames = monitor_fail_frames_;
-  metrics.last_process_ms = monitor_last_process_ms_;
-  metrics.avg_process_ms = avg_process_ms;
-  metrics.last_latency_ms = monitor_last_latency_ms_;
-  metrics.avg_latency_ms = avg_latency_ms;
-  metrics.process_fps = monitor_fps_;
-  service_runtime::publish_cv_process_metrics(bus_.get(), metrics);
+  service_runtime::publish_cv_process_timing(bus_.get(), process_ms, latency_ms, ts_ms);
 }
 
 void VideoStabService::on_lifecycle(bool active, const json& meta) {
@@ -617,7 +570,6 @@ void VideoStabService::process_frame_once() {
   const std::int64_t source_ts_ms = latest->ts_ms;
   input_frame_bgra_ = std::move(latest->payload);
 
-  ++monitor_observed_frames_;
   input_last_frame_id_ = source_frame_id;
   const std::int64_t process_start_ms = f8::cppsdk::now_ms();
 
@@ -636,7 +588,6 @@ void VideoStabService::process_frame_once() {
   try {
     cv::cvtColor(src_bgra, gray, cv::COLOR_BGRA2GRAY);
   } catch (const cv::Exception& ex) {
-    ++monitor_fail_frames_;
     publish_error_if_changed(std::string("opencv cvtColor failed: ") + ex.what(), "runtime",
                              json::object());
     return;
@@ -680,7 +631,6 @@ void VideoStabService::process_frame_once() {
         cv::calcOpticalFlowPyrLK(prev_gray_, gray, prev_pts, curr_pts, status, err);
       }
     } catch (const cv::Exception& ex) {
-      ++monitor_fail_frames_;
       ++consecutive_failures_;
       publish_error_if_changed(std::string("opencv optical flow failed: ") + ex.what(), "runtime",
                                json::object());
@@ -761,7 +711,6 @@ void VideoStabService::process_frame_once() {
           }
         }
       } catch (const cv::Exception& ex) {
-        ++monitor_fail_frames_;
         ++consecutive_failures_;
         publish_error_if_changed(std::string("opencv transform estimate failed: ") + ex.what(), "runtime",
                                  json::object());
@@ -813,7 +762,6 @@ void VideoStabService::process_frame_once() {
                               cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0, 255));
         }
       } catch (const cv::Exception& ex) {
-        ++monitor_fail_frames_;
         ++consecutive_failures_;
         publish_error_if_changed(std::string("opencv warp failed: ") + ex.what(), "runtime",
                                  json::object());
@@ -824,7 +772,6 @@ void VideoStabService::process_frame_once() {
 
     if (!motion_valid) {
       if (!scene_changed) {
-        ++monitor_fail_frames_;
         ++consecutive_failures_;
         if (consecutive_failures_ >= reset_on_failure_frames_) {
           reset_stabilizer_internal(json::object(), "consecutive_failures");
@@ -842,7 +789,6 @@ void VideoStabService::process_frame_once() {
   }
 
   if (!output_zenoh_video_ || !output_zenoh_video_->valid()) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("output zenoh publisher unavailable: " + output_stream_key_, "runtime", json::object());
     return;
   }
@@ -856,7 +802,6 @@ void VideoStabService::process_frame_once() {
   frame.payload = reinterpret_cast<const std::byte*>(stabilized.data);
   frame.payload_bytes = stabilized.step[0] * static_cast<std::size_t>(stabilized.rows);
   if (!output_zenoh_video_->publish_frame(frame)) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("output zenoh publish failed: " + output_stream_key_, "runtime", json::object());
     return;
   }

@@ -218,15 +218,6 @@ bool TemplateMatchService::start() {
   match_result_.release();
   last_frame_id_ = 0;
   last_video_open_attempt_ms_ = 0;
-  monitor_observed_frames_ = 0;
-  monitor_processed_frames_ = 0;
-  monitor_window_processed_frames_ = 0;
-  monitor_window_start_ms_ = 0;
-  monitor_last_process_ms_ = 0.0;
-  monitor_total_process_ms_ = 0.0;
-  monitor_last_latency_ms_ = 0.0;
-  monitor_total_latency_ms_ = 0.0;
-  monitor_fps_ = 0.0;
 
   running_.store(true, std::memory_order_release);
   stop_requested_.store(false, std::memory_order_release);
@@ -492,7 +483,6 @@ void TemplateMatchService::detect_once() {
     if (frame_meta.frame_id == 0 || frame_meta.frame_id == last_frame_id_) {
       return;
     }
-    ++monitor_observed_frames_;
     last_frame_id_ = frame_meta.frame_id;
 
     const std::int64_t now_ms = f8::cppsdk::now_ms();
@@ -650,44 +640,8 @@ void TemplateMatchService::detect_once() {
 
 void TemplateMatchService::emit_monitor_snapshot(std::int64_t ts_ms, std::uint64_t frame_id, double process_ms,
                                                  double latency_ms) {
-  if (!bus_)
-    return;
   (void)frame_id;
-  if (monitor_window_start_ms_ <= 0) {
-    monitor_window_start_ms_ = ts_ms;
-  }
-  ++monitor_processed_frames_;
-  ++monitor_window_processed_frames_;
-  monitor_last_process_ms_ = process_ms;
-  monitor_total_process_ms_ += process_ms;
-  monitor_last_latency_ms_ = latency_ms;
-  monitor_total_latency_ms_ += latency_ms;
-
-  const std::int64_t elapsed = ts_ms - monitor_window_start_ms_;
-  if (elapsed >= 1000) {
-    monitor_fps_ = static_cast<double>(monitor_window_processed_frames_) * 1000.0 / static_cast<double>(elapsed);
-    monitor_window_start_ms_ = ts_ms;
-    monitor_window_processed_frames_ = 0;
-  }
-
-  const std::uint64_t dropped_frames =
-      monitor_observed_frames_ > monitor_processed_frames_ ? (monitor_observed_frames_ - monitor_processed_frames_) : 0;
-  const double avg_process_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_process_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  const double avg_latency_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_latency_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  service_runtime::CvProcessMetrics metrics;
-  metrics.observed_frames = monitor_observed_frames_;
-  metrics.processed_frames = monitor_processed_frames_;
-  metrics.dropped_frames = dropped_frames;
-  metrics.last_process_ms = monitor_last_process_ms_;
-  metrics.avg_process_ms = avg_process_ms;
-  metrics.last_latency_ms = monitor_last_latency_ms_;
-  metrics.avg_latency_ms = avg_latency_ms;
-  metrics.process_fps = monitor_fps_;
-  service_runtime::publish_cv_process_metrics(bus_.get(), metrics);
+  service_runtime::publish_cv_process_timing(bus_.get(), process_ms, latency_ms, ts_ms);
 }
 
 bool TemplateMatchService::on_command(const std::string& call, const json& args, const json& meta, json& result,

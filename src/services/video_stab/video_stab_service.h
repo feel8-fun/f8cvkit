@@ -138,16 +138,6 @@ class VideoStabService final : public f8::cppsdk::LifecycleNode,
   int consecutive_failures_ = 0;
   int scene_cut_cooldown_remaining_ = 0;
 
-  std::uint64_t monitor_observed_frames_ = 0;
-  std::uint64_t monitor_processed_frames_ = 0;
-  std::uint64_t monitor_window_processed_frames_ = 0;
-  std::uint64_t monitor_fail_frames_ = 0;
-  std::int64_t monitor_window_start_ms_ = 0;
-  double monitor_last_process_ms_ = 0.0;
-  double monitor_total_process_ms_ = 0.0;
-  double monitor_last_latency_ms_ = 0.0;
-  double monitor_total_latency_ms_ = 0.0;
-  double monitor_fps_ = 0.0;
 };
 
 }  // namespace f8::cvkit::video_stab

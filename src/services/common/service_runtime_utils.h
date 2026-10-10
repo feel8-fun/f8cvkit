@@ -20,19 +20,7 @@ namespace f8::cvkit::service_runtime {
 
 using json = nlohmann::json;
 
-struct CvProcessMetrics {
-  std::uint64_t observed_frames = 0;
-  std::uint64_t processed_frames = 0;
-  std::uint64_t dropped_frames = 0;
-  std::uint64_t failed_frames = 0;
-  double last_process_ms = 0.0;
-  double avg_process_ms = 0.0;
-  double last_latency_ms = 0.0;
-  double avg_latency_ms = 0.0;
-  double process_fps = 0.0;
-  std::uint64_t last_points_per_frame = 0;
-  std::uint64_t last_vectors_per_frame = 0;
-};
+
 
 struct FrameBufferValidationResult {
   bool ok = false;
@@ -283,10 +271,11 @@ inline void publish_state_if_changed(std::mutex& state_mu,
   }
 }
 
-inline void publish_cv_process_metrics(f8::cppsdk::ServiceBus* bus, const CvProcessMetrics& metrics) {
+inline void publish_cv_process_timing(f8::cppsdk::ServiceBus* bus, double process_ms,
+                                      double latency_ms, std::int64_t ts_ms) {
   if (bus != nullptr) {
-    bus->record_monitor_processed("cv_process");
-    bus->record_monitor_timing("cv_process", metrics.last_process_ms, metrics.last_latency_ms);
+    bus->record_monitor_processed("cv_process", ts_ms);
+    bus->record_monitor_timing("cv_process", process_ms, latency_ms, ts_ms);
   }
 }
 

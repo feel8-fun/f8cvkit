@@ -126,17 +126,6 @@ bool DenseOptflowService::start() {
   prev_width_ = 0;
   prev_height_ = 0;
 
-  monitor_observed_frames_ = 0;
-  monitor_processed_frames_ = 0;
-  monitor_window_processed_frames_ = 0;
-  monitor_fail_frames_ = 0;
-  monitor_last_vectors_per_frame_ = 0;
-  monitor_window_start_ms_ = 0;
-  monitor_last_process_ms_ = 0.0;
-  monitor_total_process_ms_ = 0.0;
-  monitor_last_latency_ms_ = 0.0;
-  monitor_total_latency_ms_ = 0.0;
-  monitor_fps_ = 0.0;
 
   auto publisher = std::make_shared<f8::cppsdk::ZenohLatestVideoFramePublisher>();
   if (publisher->open(runtime_backend, flow_key_)) {
@@ -213,47 +202,9 @@ void DenseOptflowService::publish_error_if_changed(const json& value, const std:
 
 void DenseOptflowService::emit_monitor_snapshot(std::int64_t ts_ms, std::uint64_t frame_id, double process_ms,
                                                 double latency_ms, std::uint64_t vectors_per_frame) {
-  if (!bus_) return;
   (void)frame_id;
-  if (monitor_window_start_ms_ <= 0) {
-    monitor_window_start_ms_ = ts_ms;
-  }
-  ++monitor_processed_frames_;
-  ++monitor_window_processed_frames_;
-  monitor_last_process_ms_ = process_ms;
-  monitor_total_process_ms_ += process_ms;
-  monitor_last_latency_ms_ = latency_ms;
-  monitor_total_latency_ms_ += latency_ms;
-  monitor_last_vectors_per_frame_ = vectors_per_frame;
-
-  const std::int64_t elapsed = ts_ms - monitor_window_start_ms_;
-  if (elapsed >= 1000) {
-    monitor_fps_ = static_cast<double>(monitor_window_processed_frames_) * 1000.0 / static_cast<double>(elapsed);
-    monitor_window_start_ms_ = ts_ms;
-    monitor_window_processed_frames_ = 0;
-  }
-
-  const std::uint64_t dropped_frames = monitor_observed_frames_ > monitor_processed_frames_
-                                           ? (monitor_observed_frames_ - monitor_processed_frames_)
-                                           : 0;
-  const double avg_process_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_process_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  const double avg_latency_ms = monitor_processed_frames_ > 0
-                                    ? (monitor_total_latency_ms_ / static_cast<double>(monitor_processed_frames_))
-                                    : 0.0;
-  service_runtime::CvProcessMetrics metrics;
-  metrics.observed_frames = monitor_observed_frames_;
-  metrics.processed_frames = monitor_processed_frames_;
-  metrics.dropped_frames = dropped_frames;
-  metrics.failed_frames = monitor_fail_frames_;
-  metrics.last_process_ms = monitor_last_process_ms_;
-  metrics.avg_process_ms = avg_process_ms;
-  metrics.last_latency_ms = monitor_last_latency_ms_;
-  metrics.avg_latency_ms = avg_latency_ms;
-  metrics.process_fps = monitor_fps_;
-  metrics.last_vectors_per_frame = monitor_last_vectors_per_frame_;
-  service_runtime::publish_cv_process_metrics(bus_.get(), metrics);
+  (void)vectors_per_frame;
+  service_runtime::publish_cv_process_timing(bus_.get(), process_ms, latency_ms, ts_ms);
 }
 
 void DenseOptflowService::on_lifecycle(bool active, const json& meta) {
@@ -377,7 +328,6 @@ void DenseOptflowService::process_frame_once() {
   const std::uint64_t source_frame_id = latest->frame_id;
   frame_bgra_ = std::move(latest->payload);
 
-  ++monitor_observed_frames_;
   ++frame_counter_;
 
   const int every_n = std::max(1, compute_every_n_frames_);
@@ -405,7 +355,6 @@ void DenseOptflowService::process_frame_once() {
   try {
     cv::cvtColor(bgra, gray_, cv::COLOR_BGRA2GRAY);
   } catch (const cv::Exception& ex) {
-    ++monitor_fail_frames_;
     publish_error_if_changed(std::string("opencv cvtColor failed: ") + ex.what(), "runtime", json::object());
     return;
   }
@@ -436,7 +385,6 @@ void DenseOptflowService::process_frame_once() {
       prev_compute = prev_compute_;
       gray_compute = gray_compute_;
     } catch (const cv::Exception& ex) {
-      ++monitor_fail_frames_;
       publish_error_if_changed(std::string("opencv resize failed: ") + ex.what(), "runtime", json::object());
       gray_.copyTo(prev_gray_);
       return;
@@ -446,7 +394,6 @@ void DenseOptflowService::process_frame_once() {
   try {
     cv::calcOpticalFlowFarneback(prev_compute, gray_compute, flow_compute_, 0.5, 3, 15, 3, 5, 1.2, 0);
   } catch (const cv::Exception& ex) {
-    ++monitor_fail_frames_;
     publish_error_if_changed(std::string("opencv farneback failed: ") + ex.what(), "runtime", json::object());
     gray_.copyTo(prev_gray_);
     return;
@@ -477,7 +424,6 @@ void DenseOptflowService::process_frame_once() {
   };
 
   if (!publish_zenoh_flow) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("flow zenoh publisher unavailable: " + flow_key_, "runtime", json::object());
     gray_.copyTo(prev_gray_);
     return;
@@ -495,7 +441,6 @@ void DenseOptflowService::process_frame_once() {
   frame.payload = flow_payload_.data();
   frame.payload_bytes = flow_payload_.size();
   if (!flow_zenoh_publisher_->publish_frame(frame)) {
-    ++monitor_fail_frames_;
     publish_error_if_changed("flow zenoh publish failed: " + flow_key_, "runtime", json::object());
     gray_.copyTo(prev_gray_);
     return;

@@ -96,17 +96,6 @@ class DenseOptflowService final : public f8::cppsdk::LifecycleNode,
   int prev_height_ = 0;
 
   // Monitor stats.
-  std::uint64_t monitor_observed_frames_ = 0;
-  std::uint64_t monitor_processed_frames_ = 0;
-  std::uint64_t monitor_window_processed_frames_ = 0;
-  std::uint64_t monitor_fail_frames_ = 0;
-  std::uint64_t monitor_last_vectors_per_frame_ = 0;
-  std::int64_t monitor_window_start_ms_ = 0;
-  double monitor_last_process_ms_ = 0.0;
-  double monitor_total_process_ms_ = 0.0;
-  double monitor_last_latency_ms_ = 0.0;
-  double monitor_total_latency_ms_ = 0.0;
-  double monitor_fps_ = 0.0;
 };
 
 }  // namespace f8::cvkit::dense_optflow
